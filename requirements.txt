@@ -22,7 +22,7 @@ llama_index.core.storage.docstore
 llama_index.core.storage.index_store
 
 # LLM
-llama_index.llms.openai import OpenAI
+llama_index.llms.openai
 
 # Workflow
 llama_index.core.workflow
