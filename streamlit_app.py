@@ -4,13 +4,15 @@ import json
 from datetime import datetime
 import pandas as pd
 from streamlit_webrtc import webrtc_streamer
-from together import Together
+import together
 from llama_index import VectorStoreIndex, SimpleDirectoryReader, ServiceContext
+from llama_index.llms import Together
 from llama_index.embeddings import HuggingFaceEmbedding
 import os
 
-# Configure Together AI client
-client = Together()
+# Configure Together AI
+together.api_key = st.secrets["TOGETHER_API_KEY"]
+LLAMA_MODEL = "meta-llama/llama-2-70b-chat"
 
 # Initialize session state variables
 if 'current_question' not in st.session_state:
@@ -32,69 +34,78 @@ if 'index' not in st.session_state:
 DATA_DIR = Path("data")
 DATA_DIR.mkdir(exist_ok=True)
 
-def generate_questions(script_content):
-    """Generate questions using Together AI"""
-    try:
-        prompt = f"""Given this script, generate 10 challenging questions that will test 
-        someone's ability to stay on script. Questions should be specific and probe for 
-        detailed knowledge of the script content.
-
-        Script content:
-        {script_content}
-
-        Generate 10 numbered questions that will test how well someone knows and can stick to this script.
-        Make the questions challenging and specific to the script content."""
-        
-        response = client.chat.completions.create(
-            model="meta-llama/Llama-3.2-11B-Vision-Instruct-Turbo",
-            messages=[
-                {"role": "system", "content": "You are an expert interviewer creating questions to test script adherence."},
-                {"role": "user", "content": prompt}
-            ]
-        )
-        
-        # Extract questions from response
-        questions_text = response.choices[0].message.content
-        questions = [q.strip() for q in questions_text.split('\n') if q.strip() and any(c.isdigit() for c in q[:2])]
-        return questions[:10]  # Ensure we have exactly 10 questions
+def setup_llama_index():
+    """Setup LlamaIndex with Together AI model"""
+    llm = Together(
+        model=LLAMA_MODEL,
+        temperature=0.1,
+        max_tokens=512
+    )
     
+    embed_model = HuggingFaceEmbedding(
+        model_name="BAAI/bge-small-en-v1.5"
+    )
+    
+    service_context = ServiceContext.from_defaults(
+        llm=llm,
+        embed_model=embed_model,
+        chunk_size=1024,
+        chunk_overlap=20
+    )
+    
+    return service_context
+
+def generate_questions(index):
+    """Generate questions using LlamaIndex and Together AI"""
+    try:
+        # Create a query engine
+        query_engine = index.as_query_engine()
+        
+        # Generate questions prompt
+        questions_prompt = """
+        Based on the script content, generate 10 challenging questions that will test 
+        someone's ability to stay on script. Questions should be specific and probe for 
+        detailed knowledge of the script content. Format the output as a numbered list.
+        """
+        
+        # Get response from the model
+        response = query_engine.query(questions_prompt)
+        
+        # Parse the response into individual questions
+        questions = str(response).split('\n')
+        questions = [q.strip() for q in questions if q.strip() and any(c.isdigit() for c in q[:2])]
+        
+        # Ensure we have exactly 10 questions
+        questions = questions[:10]
+        return questions
     except Exception as e:
         st.error(f"Error generating questions: {str(e)}")
         return []
 
-def evaluate_response(script_content, question, response):
-    """Evaluate if the response aligns with the script using Together AI"""
+def evaluate_response(index, question, response):
+    """Evaluate if the response aligns with the script using LlamaIndex"""
     try:
+        query_engine = index.as_query_engine()
+        
         evaluation_prompt = f"""
-        Evaluate if this response aligns with the given script.
-
-        Script content:
-        {script_content}
-
         Question: {question}
         Response: {response}
-
-        Evaluate the response considering:
-        1. Accuracy of information compared to the script
+        
+        Evaluate if this response aligns with the script content. Consider:
+        1. Accuracy of information
         2. Adherence to script messaging
         3. Completeness of response
-
-        Provide your evaluation in valid JSON format with these exact keys:
-        {{"aligned": true/false, "feedback": "detailed feedback", "score": numeric_score_0_to_100}}
-        """
-
-        eval_response = client.chat.completions.create(
-            model="meta-llama/Llama-3.2-11B-Vision-Instruct-Turbo",
-            messages=[
-                {"role": "system", "content": "You are an expert evaluator assessing script adherence. Provide evaluation in valid JSON format."},
-                {"role": "user", "content": evaluation_prompt}
-            ]
-        )
         
-        # Parse the JSON response
-        eval_text = eval_response.choices[0].message.content
-        return json.loads(eval_text)
-    
+        Return the evaluation in this JSON format:
+        {{
+            "aligned": true/false,
+            "feedback": "detailed feedback here",
+            "score": "numerical score 0-100"
+        }}
+        """
+        
+        result = query_engine.query(evaluation_prompt)
+        return json.loads(str(result))
     except Exception as e:
         st.error(f"Error evaluating response: {str(e)}")
         return {"aligned": False, "feedback": "Error in evaluation", "score": 0}
@@ -116,17 +127,22 @@ with st.sidebar:
     # Script upload
     uploaded_file = st.file_uploader("Upload Script", type=['txt'])
     if uploaded_file:
-        script_content = uploaded_file.getvalue().decode('utf-8')
-        st.session_state.script_content = script_content
-        
         # Save uploaded file
         script_path = DATA_DIR / "current_script.txt"
         with open(script_path, 'wb') as f:
             f.write(uploaded_file.getvalue())
         
+        # Initialize LlamaIndex
+        service_context = setup_llama_index()
+        documents = SimpleDirectoryReader(input_files=[script_path]).load_data()
+        st.session_state.index = VectorStoreIndex.from_documents(
+            documents,
+            service_context=service_context
+        )
+        
         if st.button("Generate Questions"):
             with st.spinner("Generating questions..."):
-                st.session_state.questions = generate_questions(script_content)
+                st.session_state.questions = generate_questions(st.session_state.index)
                 st.session_state.current_question = 0
                 st.session_state.responses = []
                 st.session_state.evaluation_complete = False
@@ -139,7 +155,7 @@ with st.sidebar:
     )
 
 # Main content area
-if st.session_state.script_content and len(st.session_state.questions) > 0:
+if st.session_state.index and len(st.session_state.questions) > 0:
     if not st.session_state.evaluation_complete:
         # Display current question
         st.subheader(f"Question {st.session_state.current_question + 1} of 10")
@@ -161,7 +177,7 @@ if st.session_state.script_content and len(st.session_state.questions) > 0:
                         total_score = 0
                         
                         for q, r in zip(st.session_state.questions, st.session_state.responses):
-                            eval_result = evaluate_response(st.session_state.script_content, q, r)
+                            eval_result = evaluate_response(st.session_state.index, q, r)
                             evaluations.append(eval_result)
                             total_score += float(eval_result['score'])
                         
@@ -169,7 +185,6 @@ if st.session_state.script_content and len(st.session_state.questions) > 0:
                         
                         # Save interview data
                         interview_data = {
-                            "script": st.session_state.script_content,
                             "questions": st.session_state.questions,
                             "responses": st.session_state.responses,
                             "evaluations": evaluations,
