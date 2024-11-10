@@ -18,7 +18,7 @@ llama_index.core.storage.docstore
 llama_index.core.storage.index_store
 
 # LLM
-llama_index.llms.openai
+# llama_index.llms.openai
 
 # Workflow
 llama_index.core.workflow
@@ -27,4 +27,4 @@ llama_index.core.workflow
 llama_index.utils.workflow
 
 # Embeddings
-llama_index.embeddings.openai
+llama_index.embeddings
