@@ -4,7 +4,7 @@ import json
 from datetime import datetime
 import pandas as pd
 from streamlit_webrtc import webrtc_streamer
-import together
+
 import llama_index
 
 
@@ -17,10 +17,9 @@ from llama_index.core import SimpleDirectoryReader, StorageContext, Document, Ve
 
 #from llama_index import  ServiceContext
 
+from llama_index.embeddings import TogetherEmbedding
+from llama_index.llms import TogetherLLM
 
-
-
-from llama_index.llms import Together
 from llama_index.embeddings import HuggingFaceEmbedding
 import os
 
