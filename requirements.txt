@@ -2,7 +2,33 @@ streamlit
 streamlit-webrtc 
 llama-index
 llama-index.core
-openai
+
+
+
+
 pandas
 together
 transformers
+
+
+# Storage
+pinecone 
+llama_index.vector_stores.pinecone
+llama_index.core
+
+# RAG
+llama_index.core.node_parser
+llama_index.core.storage.docstore
+llama_index.core.storage.index_store
+
+# LLM
+llama_index.llms.openai import OpenAI
+
+# Workflow
+llama_index.core.workflow
+
+# Workflow Graph
+llama_index.utils.workflow
+
+# Embeddings
+llama_index.embeddings.openai
