@@ -1,5 +1,7 @@
 streamlit
 streamlit-webrtc 
+llama-index
+llama-index.core
 openai
 pandas
 together
