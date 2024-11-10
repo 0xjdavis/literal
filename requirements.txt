@@ -5,7 +5,7 @@ llama-index
 pandas
 together
 transformers
-
+torch
 
 # Storage
 pinecone 
