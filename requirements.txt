@@ -29,4 +29,8 @@ llama_index.core
 # llama_index.utils.workflow
 
 # Embeddings
-# llama_index.embeddings
+#llama_index.embeddings
+
+#python-llama-index
+llama-index-llms-together
+llama-index-embeddings-together
