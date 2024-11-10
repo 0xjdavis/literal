@@ -20,8 +20,8 @@ from llama_index.core import SimpleDirectoryReader, StorageContext, Document, Ve
 from llama_index.embeddings import TogetherEmbedding
 from llama_index.llms import TogetherLLM
 
-from llama_index.embeddings import HuggingFaceEmbedding
-import os
+# from llama_index.embeddings import HuggingFaceEmbedding
+#import os
 
 
 # RAG
