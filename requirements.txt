@@ -1,2 +1,5 @@
 streamlit
+streamlit-webrtc 
 openai
+pandas
+transformers
