@@ -1,10 +1,6 @@
 streamlit
 streamlit-webrtc 
 llama-index
-llama-index.core
-
-
-
 
 pandas
 together
