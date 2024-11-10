@@ -11,7 +11,7 @@ llama-index
 
 # Storage
 pinecone 
-#llama_index.vector_stores.pinecone
+llama_index.vector_stores.pinecone
 llama_index.core
 
 # RAG
