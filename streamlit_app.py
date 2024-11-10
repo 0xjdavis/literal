@@ -5,6 +5,8 @@ from datetime import datetime
 import pandas as pd
 from streamlit_webrtc import webrtc_streamer
 import together
+import llama_index
+import llama_index.core
 from llama_index import VectorStoreIndex, SimpleDirectoryReader, ServiceContext
 from llama_index.llms import Together
 from llama_index.embeddings import HuggingFaceEmbedding
