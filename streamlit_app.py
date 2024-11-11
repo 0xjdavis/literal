@@ -7,9 +7,11 @@ import pandas as pd
 from datetime import datetime
 from typing import Dict, List, Optional, Tuple, Union
 from llama_index.core import (
-    SimpleDirectoryReader, VectorStoreIndex, Settings,
-    ServiceContext
+    SimpleDirectoryReader,
+    VectorStoreIndex,
+    Settings,
 )
+from llama_index.core.node_parser import SentenceSplitter
 from llama_index.embeddings.together import TogetherEmbedding
 from llama_index.llms.together import TogetherLLM
 import time
@@ -24,12 +26,66 @@ logger = logging.getLogger(__name__)
 
 # Configuration
 TOGETHER_API_KEY = st.secrets['TOGETHER_API_KEY']
-# LLAMA_MODEL = "meta-llama/Llama-Vision-Free"
-LLAMA_MODEL = "meta-llama/Llama-3.2-11B-Vision-Instruct-Turbo"
+#LLAMA_MODEL = "meta-llama/Llama-3.2-11B-Vision-Instruct-Turbo"
+LLAMA_MODEL = "meta-llama/Llama-3.2-90B-Vision-Instruct-Turbo"
 DATA_DIR = Path("data")
 MAX_RETRIES = 3
 RETRY_DELAY = 2
 LLM_TIMEOUT = 30
+
+def load_documents(data_dir: Path) -> List:
+    """Enhanced document loading with validation and logging"""
+    documents = []
+    
+    # Walk through directory and explicitly load each file
+    for root, _, files in os.walk(data_dir):
+        for file in files:
+            try:
+                file_path = Path(root) / file
+                # Use SimpleDirectoryReader for all file types
+                if file_path.suffix.lower() in ['.pdf', '.txt', '.md']:
+                    docs = SimpleDirectoryReader(
+                        input_files=[str(file_path)],
+                        filename_as_id=True
+                    ).load_data()
+                    documents.extend(docs)
+                    logging.info(f"Successfully loaded: {file_path}")
+            except Exception as e:
+                logging.error(f"Error loading {file_path}: {str(e)}")
+                continue
+    
+    return documents
+
+def verify_documents(documents):
+    """Print information about loaded documents"""
+    logging.info(f"Total documents loaded: {len(documents)}")
+    for i, doc in enumerate(documents):
+        logging.info(f"Document {i+1}:")
+        logging.info(f"  Metadata: {doc.metadata if hasattr(doc, 'metadata') else 'No metadata'}")
+        logging.info(f"  Content preview: {str(doc.text)[:100] if hasattr(doc, 'text') else 'No text'}")
+
+def create_index_with_settings(documents):
+    """Create index with configured settings"""
+    try:
+        # Configure global settings
+        Settings.chunk_size = 1024
+        Settings.chunk_overlap = 128
+        Settings.node_parser = SentenceSplitter(
+            chunk_size=1024,
+            chunk_overlap=128,
+        )
+        Settings.embed_model = TogetherEmbedding(
+            model_name="togethercomputer/m2-bert-80M-8k-retrieval"
+        )
+        
+        # Create the index
+        index = VectorStoreIndex.from_documents(documents)
+        
+        logging.info(f"Successfully created index with {len(documents)} documents")
+        return index
+    except Exception as e:
+        logging.error(f"Error creating index: {str(e)}")
+        raise
 
 class DocumentProcessor:
     """Handles document processing and storage operations"""
@@ -70,7 +126,7 @@ class DocumentProcessor:
         except Exception as e:
             logger.error(f"Error saving document: {e}")
             raise
-        
+
 class LLMManager:
     """Manages LLM operations with retry logic and error handling"""
     
@@ -81,9 +137,6 @@ class LLMManager:
         """Initialize LLM with retry logic"""
         for attempt in range(MAX_RETRIES):
             try:
-                Settings.embed_model = TogetherEmbedding(
-                    model_name="togethercomputer/m2-bert-80M-8k-retrieval"
-                )
                 llm = TogetherLLM(
                     model=LLAMA_MODEL,
                     temperature=0.1,
@@ -174,7 +227,6 @@ class ScriptTester:
             
             try:
                 evaluation = json.loads(str(result))
-                # Validate evaluation structure
                 required_keys = {"aligned", "feedback", "score"}
                 if not all(key in evaluation for key in required_keys):
                     raise ValueError("Invalid evaluation structure")
@@ -208,7 +260,8 @@ class SessionManager:
             'evaluation_complete': False,
             'index': None,
             'final_results': None,
-            'error_state': None
+            'error_state': None,
+            'messages': []  # For chat history
         }
         
         for key, default_value in defaults.items():
@@ -224,74 +277,6 @@ class SessionManager:
         st.session_state.evaluation_complete = False
         st.session_state.final_results = None
         st.session_state.error_state = None
-
-def main():
-    """Main application logic"""
-    try:
-        # Initialize session state
-        SessionManager.initialize_session_state()
-        
-        # Initialize components
-        doc_processor = DocumentProcessor(DATA_DIR)
-        llm_manager = LLMManager()
-        
-        st.title("Literal")
-        st.write("Self Help for 🇺🇸 United States Asylum Seekers")
-        
-        # Initialize base index for Q&A mode if not already done
-        if 'base_index' not in st.session_state:
-            with st.spinner("Loading knowledge base..."):
-                try:
-                    if llm_manager.setup_llm():
-                        # Load documents from data directory, excluding the results and mock-testimonials subdirectories
-                        documents = SimpleDirectoryReader(
-                            input_dir=str(DATA_DIR),
-                            exclude_hidden=True,
-                            recursive=True,
-                            filename_as_id=True,
-                            required_exts=['.txt', '.md', '.pdf']
-                        ).load_data()
-                        if not documents:
-                            raise ValueError("No documents found in data directory")
-                        st.session_state.base_index = VectorStoreIndex.from_documents(documents)
-                        logger.info(f"Base knowledge index created successfully with {len(documents)} documents")
-                except Exception as e:
-                    logger.error(f"Error loading knowledge base: {traceback.format_exc()}")
-                    st.error("Error loading knowledge base...")
-                    return
-    
-        # Sidebar setup
-        with st.sidebar:
-            st.header("Mode Selection")
-            mode = st.radio("Select Mode", ['Q&A', 'Testimonial Practice'])
-            st.session_state.mode = mode
-            
-            # Only show document upload for Testimonial Practice mode
-            if mode == 'Testimonial Practice':
-                st.header("Document Upload")
-                uploaded_file = st.file_uploader("Upload Testimonial", type=['txt', 'md', 'pdf'])
-                
-                if uploaded_file:
-                    with st.spinner("Processing testimonial..."):
-                        try:
-                            file_path = doc_processor.save_document(uploaded_file)
-                            if llm_manager.setup_llm():
-                                documents = SimpleDirectoryReader(input_files=[file_path]).load_data()
-                                st.session_state.index = VectorStoreIndex.from_documents(documents)
-                                st.success("Testimonial processed successfully!")
-                        except Exception as e:
-                            st.error(f"Error processing document: {str(e)}")
-                            logger.error(f"Document processing error: {traceback.format_exc()}")
-        
-        # Main content area
-        if st.session_state.mode == 'Q&A':
-            handle_rag_mode(st.session_state.base_index)
-        else:
-            handle_script_testing_mode(st.session_state.index)
-    
-    except Exception as e:
-        logger.error(f"Application error: {traceback.format_exc()}")
-        st.error("An unexpected error occurred. Please try again or contact support.")
 
 def handle_rag_mode(index: Optional[VectorStoreIndex]):
     """Handle RAG query mode"""
@@ -310,6 +295,12 @@ def handle_rag_mode(index: Optional[VectorStoreIndex]):
         with st.chat_message(message["role"]):
             st.markdown(message["content"])
 
+    # Configure query settings
+    query_engine = index.as_query_engine(
+        similarity_top_k=5,  # Number of chunks to consider
+        response_mode="compact"
+    )
+    
     # Chat input
     if prompt := st.chat_input("Ask a question..."):
         # Add user message to chat history
@@ -323,10 +314,18 @@ def handle_rag_mode(index: Optional[VectorStoreIndex]):
         with st.chat_message("assistant"):
             with st.spinner("Thinking..."):
                 try:
-                    query_engine = index.as_query_engine()
-                    response = LLMManager.run_with_retry(
-                        query_engine.query, prompt
-                    )
+                    # Format prompt for better response
+                    formatted_prompt = f"""Based on the provided documents, please answer the following question:
+                    Question: {prompt}
+                    
+                    Please provide a detailed response using only information from the source documents."""
+                    
+                    response = query_engine.query(formatted_prompt)
+                    
+                    # Log response metadata for debugging
+                    logging.debug(f"Source nodes: {response.source_nodes if hasattr(response, 'source_nodes') else 'No source nodes'}")
+                    logging.debug(f"Response: {response}")
+                    
                     st.markdown(str(response))
                     # Add assistant response to chat history
                     st.session_state.messages.append({"role": "assistant", "content": str(response)})
@@ -448,6 +447,78 @@ def save_test_results(questions: List[str],
     except Exception as e:
         logger.error(f"Error saving test results: {e}")
         # Don't raise the error since this is not critical for the user experience
+
+def main():
+    """Main application logic"""
+    try:
+        # Initialize session state
+        SessionManager.initialize_session_state()
+        
+        # Initialize components
+        doc_processor = DocumentProcessor(DATA_DIR)
+        llm_manager = LLMManager()
+        
+        st.title("Literal")
+        st.write("Self Help for 🇺🇸 United States Asylum Seekers")
+        
+        # Initialize base index for Q&A mode if not already done
+        if 'base_index' not in st.session_state:
+            with st.spinner("Loading knowledge base..."):
+                try:
+                    if llm_manager.setup_llm():
+                        # Add debug output for directory contents
+                        logging.info(f"Scanning directory: {DATA_DIR}")
+                        for root, dirs, files in os.walk(DATA_DIR):
+                            logging.info(f"Directory: {root}")
+                            logging.info(f"Files: {files}")
+                        
+                        documents = load_documents(DATA_DIR)
+                        if not documents:
+                            raise ValueError(f"No documents found in {DATA_DIR}")
+                        
+                        # Verify documents before creating index
+                        verify_documents(documents)
+                        
+                        # Create index with new settings
+                        st.session_state.base_index = create_index_with_settings(documents)
+                        st.success(f"Successfully loaded {len(documents)} documents!")
+                except Exception as e:
+                    logger.error(f"Error loading knowledge base: {traceback.format_exc()}")
+                    st.error(f"Error loading knowledge base: {str(e)}")
+                    return
+    
+        # Sidebar setup
+        with st.sidebar:
+            st.header("Mode Selection")
+            mode = st.radio("Select Mode", ['Q&A', 'Testimonial Practice'])
+            st.session_state.mode = mode
+            
+            # Only show document upload for Testimonial Practice mode
+            if mode == 'Testimonial Practice':
+                st.header("Document Upload")
+                uploaded_file = st.file_uploader("Upload Testimonial", type=['txt', 'md', 'pdf'])
+                
+                if uploaded_file:
+                    with st.spinner("Processing testimonial..."):
+                        try:
+                            file_path = doc_processor.save_document(uploaded_file)
+                            if llm_manager.setup_llm():
+                                documents = SimpleDirectoryReader(input_files=[str(file_path)]).load_data()
+                                st.session_state.index = create_index_with_settings(documents)
+                                st.success("Testimonial processed successfully!")
+                        except Exception as e:
+                            st.error(f"Error processing document: {str(e)}")
+                            logger.error(f"Document processing error: {traceback.format_exc()}")
+        
+        # Main content area
+        if st.session_state.mode == 'Q&A':
+            handle_rag_mode(st.session_state.base_index)
+        else:
+            handle_script_testing_mode(st.session_state.index)
+    
+    except Exception as e:
+        logger.error(f"Application error: {traceback.format_exc()}")
+        st.error("An unexpected error occurred. Please try again or contact support.")
 
 if __name__ == "__main__":
     main()
