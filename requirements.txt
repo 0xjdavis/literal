@@ -6,31 +6,13 @@ together
 transformers
 torch
 
-
 llama-index
 
 # Storage
 pinecone 
 llama_index.vector_stores.pinecone
-llama_index.core
-
-# RAG
-# llama_index.core.node_parser
-# llama_index.core.storage.docstore
-# llama_index.core.storage.index_store
-
-# LLM
-# llama_index.llms.openai
-
-# Workflow
-# llama_index.core.workflow
-
-# Workflow Graph
-# llama_index.utils.workflow
+llama_index.core 
 
 # Embeddings
-#llama_index.embeddings
-
-#python-llama-index
 llama-index-llms-together
 llama-index-embeddings-together
