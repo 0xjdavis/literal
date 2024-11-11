@@ -82,8 +82,7 @@ class LLMManager:
         for attempt in range(MAX_RETRIES):
             try:
                 Settings.embed_model = TogetherEmbedding(
-                    #model_name="togethercomputer/m2-bert-80M-8k-retrieval"
-                    model_name="togethercomputer/m2-bert-80M-32k-retrieval"
+                    model_name="togethercomputer/m2-bert-80M-8k-retrieval"
                 )
                 llm = TogetherLLM(
                     model=LLAMA_MODEL,
@@ -101,7 +100,7 @@ class LLMManager:
                 if attempt < MAX_RETRIES - 1:
                     time.sleep(RETRY_DELAY)
                 else:
-                    logger.error("❌ LLM setup failed after all retries")
+                    logger.error("LLM setup failed after all retries")
                     raise
     
     @staticmethod
@@ -115,7 +114,7 @@ class LLMManager:
                 if attempt < MAX_RETRIES - 1:
                     time.sleep(RETRY_DELAY)
                 else:
-                    logger.error("❌ Operation failed after all retries")
+                    logger.error("Operation failed after all retries")
                     raise
 
 class ScriptTester:
@@ -184,7 +183,7 @@ class ScriptTester:
                 logger.error("JSON parsing failed for evaluation")
                 return {
                     "aligned": False,
-                    "feedback": "❌ Error parsing evaluation response",
+                    "feedback": "Error parsing evaluation response",
                     "score": 0
                 }
         except Exception as e:
@@ -236,12 +235,12 @@ def main():
         doc_processor = DocumentProcessor(DATA_DIR)
         llm_manager = LLMManager()
         
-        st.title("Literal ")
-        st.write("Self Help for 🇺🇸 United States Asylum Seekers")
+        st.title("Literal")
+        st.write("Self Help for United States Asylum Seekers")
         
         # Initialize base index for Q&A mode if not already done
         if 'base_index' not in st.session_state:
-            with st.spinner("🧠 Loading knowledge base..."):
+            with st.spinner("Loading knowledge base..."):
                 try:
                     if llm_manager.setup_llm():
                         # Load documents from data directory, excluding the results and mock-testimonials subdirectories
@@ -255,10 +254,10 @@ def main():
                         if not documents:
                             raise ValueError("No documents found in data directory")
                         st.session_state.base_index = VectorStoreIndex.from_documents(documents)
-                        logger.info(f"🧠 Base knowledge index created successfully with {len(documents)} documents")
+                        logger.info(f"Base knowledge index created successfully with {len(documents)} documents")
                 except Exception as e:
-                    logger.error(f"❌ Error loading knowledge base: {traceback.format_exc()}")
-                    st.error("❌ Error loading knowledge base...")
+                    logger.error(f"Error loading knowledge base: {traceback.format_exc()}")
+                    st.error("Error loading knowledge base...")
                     return
     
         # Sidebar setup
@@ -268,7 +267,7 @@ def main():
             st.session_state.mode = mode
             
             # Only show document upload for Testimonial Practice mode
-            if mode == 'Asylum Testimonial Practice':
+            if mode == 'Testimonial Practice':
                 st.header("Document Upload")
                 uploaded_file = st.file_uploader("Upload Testimonial", type=['txt', 'md', 'pdf'])
                 
@@ -296,7 +295,7 @@ def main():
 
 def handle_rag_mode(index: Optional[VectorStoreIndex]):
     """Handle RAG query mode"""
-    st.subheader("Self Help United States Assylum Q&A")
+    st.subheader("Asylum Interview Q&A")
     
     if not index:
         st.error("Knowledge base not available. Please contact support.")
@@ -403,11 +402,6 @@ def process_test_completion(script_tester: ScriptTester):
                             evaluations, 
                             total_score / 10)
             
-            if total_score / 10 < '90':
-                st.write('Asylum has been denied.')
-            else:
-                st.write ('Congratulations, your asylum has been granted!')
-            
             st.rerun()
         except Exception as e:
             logger.error(f"Test completion error: {traceback.format_exc()}")
@@ -421,20 +415,18 @@ def display_results():
     results_df = pd.DataFrame({
         "Question": st.session_state.questions,
         "Response": st.session_state.responses,
-        "Score": st.session_state.score,
         "Score": [eval_result['score'] for eval_result in st.session_state.final_results['evaluations']],
         "Feedback": [eval_result['feedback'] for eval_result in st.session_state.final_results['evaluations']]
     })
     
     st.dataframe(results_df, use_container_width=True)
     
-    if st.button("Start New Practice Session"):
+    if st.button("Start New Test"):
         SessionManager.reset_test_state()
         st.rerun()
 
 def save_test_results(questions: List[str], 
-                     responses: List[str],
-                     score: List[str],
+                     responses: List[str], 
                      evaluations: List[Dict], 
                      final_score: float):
     """Save test results to file"""
@@ -444,7 +436,6 @@ def save_test_results(questions: List[str],
             "timestamp": timestamp,
             "questions": questions,
             "responses": responses,
-            "score": score,
             "evaluations": evaluations,
             "final_score": final_score
         }
