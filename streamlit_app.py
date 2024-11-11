@@ -236,7 +236,7 @@ def main():
         llm_manager = LLMManager()
         
         st.title("Literal")
-        st.write("Self Help for United States Asylum Seekers")
+        st.write("Self Help for 🇺🇸 United States Asylum Seekers")
         
         # Initialize base index for Q&A mode if not already done
         if 'base_index' not in st.session_state:
