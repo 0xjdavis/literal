@@ -26,12 +26,6 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
-# Sidebar for API Key and User Info
-st.sidebar.header("About App")
-st.sidebar.markdown('This is an app to provide self help interview preperation for US asylum applicants created by <a href="https://ai.jdavis.xyz" target="_blank">0xjdavis</a>.', unsafe_allow_html=True)
- 
-
-
 # Configure logging
 logging.basicConfig(
     level=logging.INFO,
@@ -504,7 +498,12 @@ def main():
     
         # Sidebar setup
         with st.sidebar:
-            st.header("Mode Selection")
+            
+            # Sidebar for API Key and User Info
+            st.sidebar.header("About App")
+            st.sidebar.markdown('This is an app to provide self help interview preperation for US asylum applicants created by <a href="https://ai.jdavis.xyz" target="_blank">0xjdavis</a>.', unsafe_allow_html=True)
+             
+            st.subheader("Mode Selection")
             mode = st.radio("Select Mode", ['Q&A', 'Testimonial Practice'])
             st.session_state.mode = mode
             
@@ -524,6 +523,23 @@ def main():
                         except Exception as e:
                             st.error(f"Error processing document: {str(e)}")
                             logger.error(f"Document processing error: {traceback.format_exc()}")
+
+            # Calendly
+            st.sidebar.markdown("""
+                <hr />
+                <center>
+                <div style="border-radius:8px;padding:8px;background:#fff";width:100%;">
+                <img src="https://avatars.githubusercontent.com/u/98430977" alt="Oxjdavis" height="100" width="100" border="0" style="border-radius:50%"/>
+                <br />
+                <span style="height:12px;width:12px;background-color:#77e0b5;border-radius:50%;display:inline-block;"></span> <b style="color:#000000">I'm available for new projects!</b><br />
+                <a href="https://calendly.com/0xjdavis" target="_blank"><button style="background:#126ff3;color:#fff;border: 1px #126ff3 solid;border-radius:8px;padding:8px 16px;margin:10px 0">Schedule a call</button></a><br />
+                </div>
+                </center>
+                <br />
+            """, unsafe_allow_html=True)
+            
+            # Copyright
+            st.sidebar.caption("©️ Copyright 2024 J. Davis")
         
         # Main content area
         if st.session_state.mode == 'Q&A':
@@ -534,23 +550,6 @@ def main():
     except Exception as e:
         logger.error(f"Application error: {traceback.format_exc()}")
         st.error("An unexpected error occurred. Please try again or contact support.")
-
-# Calendly
-st.sidebar.markdown("""
-    <hr />
-    <center>
-    <div style="border-radius:8px;padding:8px;background:#fff";width:100%;">
-    <img src="https://avatars.githubusercontent.com/u/98430977" alt="Oxjdavis" height="100" width="100" border="0" style="border-radius:50%"/>
-    <br />
-    <span style="height:12px;width:12px;background-color:#77e0b5;border-radius:50%;display:inline-block;"></span> <b style="color:#000000">I'm available for new projects!</b><br />
-    <a href="https://calendly.com/0xjdavis" target="_blank"><button style="background:#126ff3;color:#fff;border: 1px #126ff3 solid;border-radius:8px;padding:8px 16px;margin:10px 0">Schedule a call</button></a><br />
-    </div>
-    </center>
-    <br />
-""", unsafe_allow_html=True)
-
-# Copyright
-st.sidebar.caption("©️ Copyright 2024 J. Davis")
 
 if __name__ == "__main__":
     main()
